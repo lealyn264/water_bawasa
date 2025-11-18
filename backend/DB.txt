@@ -1,0 +1,700 @@
+-- CREATE DATABASE
+CREATE DATABASE IF NOT EXISTS water_billing_db;
+USE water_billing_db;
+
+-- DROP ALL TABLES IF THEY EXIST (fresh import)
+DROP TABLE IF EXISTS audit_logs, payments, billings, meter_readings, forecasts, households, users, rates;
+
+-- USERS TABLE
+CREATE TABLE users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,              -- optimized length for bcrypt/argon2
+    role ENUM('Admin', 'Staff', 'Consumer') NOT NULL,
+    full_name VARCHAR(100),
+    email VARCHAR(100) UNIQUE,                        -- ensure unique email
+    contact_number VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login DATETIME NULL,                         -- for monitoring activity
+    failed_attempts INT DEFAULT 0,                    -- brute force protection
+    lockout_until DATETIME NULL                       -- temporary lockout window
+);
+
+-- HOUSEHOLDS TABLE
+CREATE TABLE households (
+    household_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    meter_number VARCHAR(20) UNIQUE,
+    address VARCHAR(255),                             -- changed from TEXT for efficiency
+    barangay VARCHAR(100),                            -- optional geo subdivision
+    tap_number VARCHAR(10),
+    registered_date DATE,
+    active_status ENUM('Active', 'Disconnected') DEFAULT 'Active',
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- METER READINGS TABLE
+CREATE TABLE meter_readings (
+    reading_id INT AUTO_INCREMENT PRIMARY KEY,
+    household_id INT,
+    reading_date DATE,
+    previous_reading INT,
+    current_reading INT,
+    consumption INT,
+    image_path VARCHAR(255),                          -- optimized path storage
+    FOREIGN KEY (household_id) REFERENCES households(household_id),
+    CHECK (current_reading >= previous_reading)       -- prevent negative usage
+);
+
+-- RATES TABLE
+CREATE TABLE rates (
+    rate_id INT AUTO_INCREMENT PRIMARY KEY,
+    effective_date DATE,
+    base_rate DECIMAL(5,2),
+    base_cubic INT,
+    excess_rate DECIMAL(5,2),
+    active ENUM('Yes','No') DEFAULT 'Yes'             -- track valid/obsolete rates
+);
+
+-- BILLINGS TABLE
+CREATE TABLE billings (
+    billing_id INT AUTO_INCREMENT PRIMARY KEY,
+    household_id INT,                                 -- direct link for faster reporting
+    reading_id INT,
+    rate_id INT,
+    billing_date DATE,
+    amount_due DECIMAL(10,2),
+    due_date DATE,
+    billing_status ENUM('Unpaid', 'Paid', 'Overdue') DEFAULT 'Unpaid',
+    base_charge DECIMAL(10,2),
+    excess_cubic INT,
+    excess_charge DECIMAL(10,2),
+    payment_id INT NULL,                              -- optional direct reference to payment
+    FOREIGN KEY (household_id) REFERENCES households(household_id),
+    FOREIGN KEY (reading_id) REFERENCES meter_readings(reading_id),
+    FOREIGN KEY (rate_id) REFERENCES rates(rate_id)
+);
+
+-- PAYMENTS TABLE
+CREATE TABLE payments (
+    payment_id INT AUTO_INCREMENT PRIMARY KEY,
+    billing_id INT,
+    payment_date DATETIME,                            -- track exact time
+    amount_paid DECIMAL(10,2),
+    payment_method VARCHAR(50),
+    transaction_reference VARCHAR(100),               -- for e-wallets/banks
+    status ENUM('Confirmed','Pending','Rejected') DEFAULT 'Confirmed',
+    receipt_path VARCHAR(255),
+    FOREIGN KEY (billing_id) REFERENCES billings(billing_id)
+);
+
+-- FORECASTS TABLE (Unified for Admin, Staff, Consumers)
+CREATE TABLE forecasts (
+    forecast_id INT AUTO_INCREMENT PRIMARY KEY,
+    household_id INT,
+    forecast_type ENUM('Usage', 'Revenue', 'Bills', 'Accounts') NOT NULL,
+    forecast_date DATE NOT NULL,
+    predicted_value DECIMAL(10,2) NOT NULL,
+    actual_value DECIMAL(10,2),
+    model_used VARCHAR(50),
+    evaluation_metric VARCHAR(20),
+    metric_value DECIMAL(10,4),
+    created_by INT,                                   -- user_id of admin/staff who ran forecast
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (household_id) REFERENCES households(household_id),
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+);
+
+-- AUDIT LOGS TABLE (ISO-ready)
+CREATE TABLE audit_logs (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,                                 -- known user
+    username VARCHAR(50),                             -- username (even if failed login)
+    role ENUM('Admin','Staff','Consumer') NULL,       -- role if available
+    ip_address VARCHAR(45),                           -- IPv4/IPv6
+    user_agent TEXT,                                  -- browser/device
+    action_type ENUM('Login','Logout','Create','Update','Delete','View','System','Other'),
+    action_detail TEXT,                               -- e.g. "Failed login: wrong password"
+    affected_table VARCHAR(50) NULL,                  -- e.g. 'users', 'billings'
+    affected_id INT NULL,                             -- e.g. 12 (user_id/billing_id/etc.)
+    status ENUM('Success','Failure','Warning') DEFAULT 'Success',
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+
+
+
+
+
+
+
+
+
+
+-- Admin & Staff accounts
+-- password: admin123
+INSERT INTO users (username, password_hash, role, full_name, email, contact_number) VALUES
+('admin', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'Admin', 'System Administrator', 'admin@bawasa.local', '09170000000');
+
+-- password: staff123
+INSERT INTO users (username, password_hash, role, full_name, email, contact_number) VALUES
+('staff', '6c7252dfe5dbcd1b9fba6bc6ab3b8894380cc0d87f9bbd9ec33cf534c1c0626f', 'Staff', 'Staff Account', 'staff@bawasa.local', '09171111111');
+
+-- Consumers (first 10)
+-- password: victorinomendoza123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('victorinomendoza', '16efa753c419bf659ad88ece3f093eac571664b26beac596f1597af5be9aeff5', 'Consumer', 'Victorino Mendoza');
+
+-- password: cleotildeumali123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('cleotildeumali', '8765fda7e17da1a031c900f3622f10c112e59f9498b71f742d19db2c6616d87a', 'Consumer', 'Cleotilde Umali');
+
+-- password: macariodecastro123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('macariodecastro', 'aad25f6a259f4c72a0d0ff0190e276c5ad49b379c705adfa3480aab9512e7f72', 'Consumer', 'Macario De Castro');
+
+-- password: luisitomanimtim123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('luisitomanimtim', '7d55e370cc56316043c9bb15a12a8da61e8ee2aa5c2f68ef41f69e6ce5ec2209', 'Consumer', 'Luisito Manimtim');
+
+-- password: albertodecastro123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('albertodecastro', '52a74f96234f62d40f515df44d92b9a14a66cc6ad0b0216e2fbc5b173aa4ce44', 'Consumer', 'Alberto De Castro');
+
+-- password: josemendoza123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('josemendoza', 'ef0b16ab90b3935fc99f8e2c0cbaaf1a1e13c0ac5c55b0b2e0a8f7767b4b7af5', 'Consumer', 'Jose Mendoza');
+
+-- password: eddiecruzat123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('eddiecruzat', 'c2ac37c0d281b9cb781e3d68b88f6922112ea24e0c8836aef3cf6d4fd8db4260', 'Consumer', 'Eddie Cruzat');
+
+-- password: merlymarasigan123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('merlymarasigan', '38a493d06d8df056f9a1f7f671bda6a70c6b1f84c1d7cc65716cf07f29a9d85e', 'Consumer', 'Merly Marasigan');
+
+-- password: ryancaponpon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('ryancaponpon', 'c92b70087edb891d84c690d0d62dffbe7ff65eb6f3f89d9de58c0a3015c9c073', 'Consumer', 'Ryan Caponpon');
+
+-- password: rosalievipanitchakan123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('rosalievipanitchakan', 'b78ad369fe1d1e4aef70807a283bdf37e6e2a624e6b615aa968351cf38b8cded', 'Consumer', 'Rosalie Vipanitchakan');
+
+-- password: henrypanganiban123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('henrypanganiban', 'f2a7a30d91d24adf6db72de5b96e3e80dcf9f0bb72a09f3b82869a83d90da22d', 'Consumer', 'Henry Panganiban');
+
+-- password: albertoreglos123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('albertoreglos', '02cb5b50f26b1cf1f055c2b7c19112a1f8082f097129c0a9cb8fa9f263c2f1d8', 'Consumer', 'Alberto Reglos');
+
+-- password: anacletomendozajr123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('anacletomendozajr', 'c7077fce97bb902d787f14b98a62c9171c0fc71d93c2cb60a200e6c69b327ea3', 'Consumer', 'Anacleto Mendoza Jr.');
+
+-- password: rosamendoza123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('rosamendoza', '99d2055cf962ea2a1ee5d90909ce6b6010323a36987f7ef60b9a15e2503f15f5', 'Consumer', 'Rosa Mendoza');
+
+-- password: allanliwanag123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('allanliwanag', '75e66af07f3e6c493b36e37bde5e22c8f5a77b113fe8040f2d25811f3d36a73b', 'Consumer', 'Allan Liwanag');
+
+-- password: arlenevillanueva123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('arlenevillanueva', '37e0d0c5932d8c8c77771cfcb3a5afc1f9de2f86e2bc2f61c06c23d8b562b42e', 'Consumer', 'Arlene Villanueva');
+
+-- password: arnoldliwanag123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('arnoldliwanag', 'd36cfb7f53e6aa8c8556e4cf73b4187e72a194dfc4b6aa2ec167c6a7d0b41341', 'Consumer', 'Arnold Liwanag');
+
+-- password: warrenlandicho123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('warrenlandicho', 'ed6dfc0b37cf2eaa1ee43f6cb0b7e781dff50ea1cf4ccce25ad7a38ff66d2dc1', 'Consumer', 'Warren Landicho');
+
+-- password: shirleyleocario123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('shirleyleocario', 'f837ebdb2a88a3fc9dbcc10a4e1caa19f413fb8de61a5b8e3c9d409615977f7e', 'Consumer', 'Shirley Leocario');
+
+-- password: norminaauila123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('norminaauila', 'e7f45c153abda3f7dd2efea8f79e3e45c321e497b6b1c43ac38f2c59543736e7', 'Consumer', 'Normina Auila');
+
+-- password: owenmanimtim123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('owenmanimtim', '02ab527bcf4222a913f59d53a1fa124fe9a0473f2f31b6be568154e12bbfb98e', 'Consumer', 'Owen Manimtim');
+
+-- password: nestorquejada123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('nestorquejada', '2e5ac290c36ea53f754a191dfd82ad9b61f57b76b2c73bdbcb728c9df9c8b18a', 'Consumer', 'Nestor Quejada');
+
+-- password: santiagocasidsid123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('santiagocasidsid', 'e6d97a5f20b2672f022857e5cf39173223df89bbd53901313b0576f1e7398149', 'Consumer', 'Santiago Casidsid');
+
+-- password: madisonona123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('madisonona', 'c4d38ef7d75d4c83ffab3d8c6d0f55d098c165d351eaf34987b54aa4e1d92995', 'Consumer', 'Madison Ona');
+
+-- password: ricoaguila123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('ricoaguila', '65cfdc25e1b94c6c067bcf4e4a5d1de3aa739bdbb6dd3c3246d979ae4917dcf3', 'Consumer', 'Rico Aguila');
+
+-- password: denniscortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('denniscortez', '45dbdfddad62d8a4a3790b3e7a646aaf0a14c030bf30f7a43a6c39545cf9d05f', 'Consumer', 'Dennis Cortez');
+
+-- password: melodybinas123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('melodybinas', '7301ff780cb2f6ad3828f9dc01015d1b9817c946cfdab8a54f382cb4127b5670', 'Consumer', 'Melody Binas');
+
+-- password: juliusaco123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('juliusaco', 'da1fdfcda057e07a5a7a65f1e741ec8b021823a4d79cc8b6378f3fa244b9b6f7', 'Consumer', 'Julius Aco');
+
+-- password: allancaponpon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('allancaponpon', 'c9a34494df5ae8b431b70d1f72f6b74ea1c5b0b7dd2f340556dddc55dd5b1539', 'Consumer', 'Allan Caponpon');
+
+-- password: milagrosdiego123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('milagrosdiego', '826d3b75ad63df227ee933ea882b08e9db3278f479d40df76d3ff2a6b2586790', 'Consumer', 'Milagros Diego');
+
+-- password: reymartumali123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('reymartumali', 'f13d78f993bda9a6c0f34a8a58c11e4e3e4650dfcf26c3aa2c1f239b9bb3a029', 'Consumer', 'Reymart Umali');
+
+-- password: rommelsaligao123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('rommelsaligao', '73d3adfdf318378d7c988bbedee47b28990755c1e978098f4e263d3131f89c0d', 'Consumer', 'Rommel Saligao');
+
+-- password: violetaumali123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('violetaumali', 'c6e7b52b0afaa8b6f530e82e889885c1dbd15be3a934119f08dc015253108f64', 'Consumer', 'Violeta Umali');
+
+-- password: violetacaponpon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('violetacaponpon', '72acb930a4b393548ffda8db0e21c2c9de7e1fef1643e5038818121c65fa6f08', 'Consumer', 'Violeta Caponpon');
+
+-- password: juanitotaborajr123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('juanitotaborajr', '502ac51a81c17f0b6606ea8907fa8d2efb8c5f291abb3629d1cde6b0ddc8eb4b', 'Consumer', 'Juanito Tabora Jr');
+
+-- password: melvinumali123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('melvinumali', 'bb2d18777fc0e5c841339cb8f7dc7892c162588db86a888a1caa33912355f858', 'Consumer', 'Melvin Umali');
+
+-- password: christoperliwanag123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('christoperliwanag', '73b7c1f89973f3ec730b4653b13ab5dd1e14d2e4e15f692fa8d3a0c503801cb0', 'Consumer', 'Christoper Liwanag');
+
+-- password: yolandaulan123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('yolandaulan', 'c49677d40dd34adf19b1f6655c6b8f54b86a0a48190a2ea18f64e9b27f413d0f', 'Consumer', 'Yolanda Ulan');
+
+-- password: marilynliwanag123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('marilynliwanag', 'e415adf6909c8f765fbba2491ad658ba54c9a52df46000f56f6475cd901f3dc5', 'Consumer', 'Marilyn Liwanag');
+
+-- password: emmalindailagan123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('emmalindailagan', '0ef0bce1f77b19bb40160bb2948962c14b01426d3743d3878fc8dd47a34aa76c', 'Consumer', 'Emmalinda Ilagan');
+
+-- password: neneliatrivino123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('neneliatrivino', '1d16fa2a4812950da5a29b4b85d2a40a813cf63a021d138d1b0eb2b6b94a92bb', 'Consumer', 'Nenelia Trivino');
+
+-- password: melchorcastillo123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('melchorcastillo', 'd962389a06ee2682b8d4a4ea67ef8dd71f60b49d4f037f1599a61f5d68ab79cf', 'Consumer', 'Melchor Castillo');
+
+-- password: ginafajilan123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('ginafajilan', 'c737fe0982b81f4b232ff3350f3e51deff0cfcd5c8a2324a44f940bb236289d3', 'Consumer', 'Gina Fajilan');
+
+-- password: ismaelsumagpang123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('ismaelsumagpang', 'be66b6e9a1c8877ea3ef3dc2935aa7e64a20c3e325f62b21b1858a2934af75de', 'Consumer', 'Ismael Sumagpang');
+
+-- password: felipeilaganjr123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('felipeilaganjr', '4042f25cd6a22e3b3dfc145070db3e3b9fd11ee6a978aa0fa49b9334f07a9ff1', 'Consumer', 'Felipe Ilagan Jr.');
+
+-- password: marivicilagan123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('marivicilagan', '8f7c7cb6d7b219671e27da75801461ad6a84b3087fe52a010e6e9e7a503fdf5f', 'Consumer', 'Marivic Ilagan');
+
+-- password: raulliwaang123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('raulliwaang', '1daab062d6c740e1000c7a6f71dd24ed8e0a21db43ffedc6d4f3f6460d195e8e', 'Consumer', 'Raul Liwanag');
+
+-- password: alfredoliwanagjr123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('alfredoliwanagjr', 'f08de2568725a1b041c802345548ad6d5ff3e5dcd79b7d274680fbb7f8b9e635', 'Consumer', 'Alfredo Liwanag Jr.');
+
+-- password: marissamercado123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('marissamercado', '31a83a0836af83962d82c6ef8f39d7ac3d00367b6abde99af653b41b0f969370', 'Consumer', 'Marissa Mercado');
+
+-- password: reynaldosaligao123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('reynaldosaligao', '18f03ffb96bfbfc25efc8298e523c1d4c810497fa4d8e1ff23d05862fdf04cfa', 'Consumer', 'Reynaldo Saligao');
+
+-- password: rowenavillena123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('rowenavillena', '6d97ac0ac87f2fa1bbec5202b59fd5d7aa0289ff9c39140af4ab0b88b3b14286', 'Consumer', 'Rowena Villena');
+
+-- password: litomarquez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('litomarquez', '999bb45af13c8e39fc6a16739b8a7c9da82da7c1848c2324f2be0ab8f9f94345', 'Consumer', 'Lito Marquez');
+
+-- password: leonidasaligao123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('leonidasaligao', 'a33c1f9a0a4ab2c748e8dfd1655de82aeb52d75907d19ea587b1674ef49d33e1', 'Consumer', 'Leonida Saligao');
+
+-- password: rodelcamo123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('rodelcamo', '7cb4f7557a1d87da8c3e80c3b1cf68273eaf0e6a6e680fbcad78f622a6332327', 'Consumer', 'Rodel Camo');
+
+-- password: agapitoalcantara123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('agapitoalcantara', 'a0f18003b155f546d7864ac9c25e7f2cf599eec97de6d6f117dad268d2fa705a', 'Consumer', 'Agapito Alcantara');
+
+-- password: marcelaalcantara123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('marcelaalcantara', '27c390d632318018314abbdc8af27b394358622a647a033c54cd50bbfb6ab07f', 'Consumer', 'Marcela Alcantara');
+
+-- password: anastaciatabora123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('anastaciatabora', '25eaa8fbbdb991b8853490c0aeafdf49c4a6a991a8c7ef2cb1a74e8cf12e06b1', 'Consumer', 'Anastacia Tabora');
+
+-- password: roysaligao123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('roysaligao', '5a853e9d0214df180d80f009aa2b6b9eb90c86e4b64276cfbbfa1cc0cd30150d', 'Consumer', 'Roy Saligao');
+
+-- password: josephtabora123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('josephtabora', 'e6652f46a446dcb2d616460e05a0189822a84f96d2da7dca5b8dbfa7aee0031a', 'Consumer', 'Joseph Tabora');
+
+-- password: rickysaligao123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('rickysaligao', '6c90caa57d6f735c9350421edc122ee2f28b0e1eaaab4f062c93a1c1728e89d0', 'Consumer', 'Ricky Saligao');
+
+-- password: soniacaponpon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('soniacaponpon', 'f0494d225aa4302d3f4b23ef10aa065517a62d7c5b802b7558e74f8797a408d1', 'Consumer', 'Sonia Caponpon');
+
+-- password: marivelcaponpon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('marivelcaponpon', '63d9f0f1f589a5a30c28a409d32d79a5d238b540a81e31460f8e12eb24df6c39', 'Consumer', 'Marivel Caponpon');
+
+-- password: denniscaponpon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('denniscaponpon', '59e650dd629f4004a60d694c96062a38aa3776f0e0d60ec649740429536df846', 'Consumer', 'Dennis Caponpon');
+
+-- password: helensalimo123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('helensalimo', 'b88663eab9c71a570d26d7f6d5e4d3ec17e4a37b1f59b8a45a0379ad92f7b2b2', 'Consumer', 'Helen Salimo');
+
+-- password: bayaniebora123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('bayaniebora', '6ab72d63aa1671c466021b1d166d022e081db0568c729db6e54ea01cbd410855', 'Consumer', 'Bayani Ebora');
+
+-- password: rositamission123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('rositamission', 'cf9152fddc43e6eea8eb4c1b6c14560c7b05356f84a0d2e9360a40a41a6903ad', 'Consumer', 'Rosita Mission');
+
+-- password: juncortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('juncortez', 'a473f9c50d1d3e1524c49cdb760a9a4d1ff7a2da10d0901f3c4aaefc3f87bb52', 'Consumer', 'Jun-Jon Cortez');
+
+-- password: cynthiaazusada123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('cynthiaazusada', 'c939b43263387af45283f73390cd1cb2b70001a10840dd91fa2e0a5db91df372', 'Consumer', 'Cynthia Azusada');
+
+-- password: liezelservancia123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('liezelservancia', 'a5d45eb0d8f63e8ab504a24fcfbdbabca87a2dc8dc64f64c85dcf2a769c97aa2', 'Consumer', 'Liezel Servancia');
+
+-- password: joeycortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('joeycortez', 'bffad3e0b43e0b23d55c7c22c8c288bc659e10d69cbd57e60d44d1a55b9a95a7', 'Consumer', 'Joey Cortez');
+
+-- password: normacortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('normacortez', '3a29ff4079304c124d7d32dd2a790c4b7f0b6c4ce090e73924c7e2c8c6229aa4', 'Consumer', 'Norma Cortez');
+
+-- password: lizacortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('lizacortez', 'c7fcf08f824a09376f989a19c92f92e72c88e18e5d18b440a187c93004ecb548', 'Consumer', 'Liza Cortez');
+
+-- password: gerrycortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('gerrycortez', '5d514e50f9f88aa3f7bbbd08ac52db2734bb856c3ffce0c37975830d8a242460', 'Consumer', 'Gerry Cortez');
+
+-- password: ruelbriones123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('ruelbriones', 'c39d6cd90e8a6491c5a07db45b07f4e50da47dd3a3b969ee63a04f7775daee22', 'Consumer', 'Ruel Briones');
+
+-- password: neonitacortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('neonitacortez', '94c303c2b3e6e7b5cfdd6cfa189addba4778bb47d598ad189cb8bb648b731493', 'Consumer', 'Neonita Cortez');
+
+-- password: meynardocastillo123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('meynardocastillo', '02fa7cd6ae45a98db1b31716e2813e2d5363906609a1b24ce007ba53875f566d', 'Consumer', 'Meynardo Castillo');
+
+-- password: benjielitobriones123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('benjielitobriones', '891ca88f4c304d94de8751a52a21379ad6f3a9d463a27cc8b6977f1a90024d84', 'Consumer', 'Benjielito Briones');
+
+-- password: teresitacastillo123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('teresitacastillo', 'b3e10e4c0d7de627489d2310cf48bfa67ee6c907f2f8ae91ff1153e405bcf5b3', 'Consumer', 'Teresita Castillo');
+
+-- password: guillermoilao123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('guillermoilao', 'b489db1cd91c1f0ab689aee79d7f54d6c186132e9271d3a20ae98ec2cbbf2a32', 'Consumer', 'Guillermo Ilao');
+
+-- password: maribelpanganiban123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('maribelpanganiban', '7b9b76d0a60cc01c3dd2b53b0599ccf24d8d8f87c301d48dadd9c8d7e14b19d1', 'Consumer', 'Maribel Panganiban');
+
+-- password: vilmailoso123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('vilmailoso', 'de351b89f4128138ee6f2836a7c9112d0cb2303d3be2f9c91b156be0b7be76a0', 'Consumer', 'Vilma Iloso');
+
+-- password: corazonsumagpang123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('corazonsumagpang', 'cd93824fc196758de883a34aef3b7b170ad76c2d8e2d22fa95eaa99e5727ea82', 'Consumer', 'Corazon Sumagpang');
+
+-- password: emeliemalco123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('emeliemalco', '2d95a21f640d9ce25d4fffa378b6c928f4007409e84a4c8633e1e93e93f0d3c2', 'Consumer', 'Emelie Malco');
+
+-- password: jerweliloso123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jerweliloso', 'd7cf7ab307ad445021f0d3bdbb01d7a53c5632e26fda8a5aafdc2fcce928ec29', 'Consumer', 'Jerwel Iloso');
+
+-- password: jessiecalingasan123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jessiecalingasan', '76d6a7a5d3d70d6f52b7fe57446d5c72605287dc9d4890504c6f19db2a4d0f5a', 'Consumer', 'Jessie Calingasan');
+
+-- password: ivycataluna123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('ivycataluna', 'be74e32f57e4cb92df20d2cf2313103dc75603cf35c6e1663e73076765c7dd3e', 'Consumer', 'Ivy Cataluna');
+
+-- password: jimmycortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jimmycortez', '8a466f23001c9e9f25cf3c3c792e0133eaa68d3921707ab1b2fc916af464f0ec', 'Consumer', 'Jimmy Cortez');
+
+-- password: jocelynmarquez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jocelynmarquez', 'a86c77d6a51402c1e94cfe4d1d0d2e7bdfd0d7ff5c2ee91a86531d4fceebc59e', 'Consumer', 'Jocelyn Marquez');
+
+-- password: jeremymarquez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jeremymarquez', '7fa92ab216c0f02954a4995f5f991bcd0041c893c0d9dc6bdb9dca7c4a31ec47', 'Consumer', 'Jeremy Marquez');
+
+-- password: fernandomalco123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('fernandomalco', '64870edcd164f7edc4483a2cebbeb0ddcfad8e4b65832fc0e7588ef7cb5d1b58', 'Consumer', 'Fernando Malco');
+
+-- password: rusticomaguiat123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('rusticomaguiat', 'eb2141679c76d369ab5d8f60dd77e0f3976a9f44f4f6a1685186e3df8db4a0b8', 'Consumer', 'Rustico Maguiat');
+
+-- password: jeanethluistro123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jeanethluistro', 'c16bb7337bbf59d9c83dbd5b7f6fcebe5420eb3d3d04a7c62ae719e3f17b03c2', 'Consumer', 'Jeaneth Luistro');
+
+-- password: qaez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('qaez', 'dcae0a2098f6537b755d2973fa093a0330ec1f5dc22899e4e52f58a836cf5c12', 'Consumer', 'QAEZ');
+
+-- password: nenitacaponpon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('nenitacaponpon', '75f46dc9f0fba9bbd272883768f378b94a9cb07cf2c3a47cdb66bece60a4c8f3', 'Consumer', 'Nenita Caponpon');
+
+-- password: merlyarcangel123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('merlyarcangel', 'a52ea780111d3aa997b1f0fa1a118cdd44426958788cb5cc33dc05d5b132c2e4', 'Consumer', 'Merly Arcangel');
+
+-- password: limuelcastillo123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('limuelcastillo', '4ae2b9a2e20f528b5ac4fdd5744b4259f4806dddf16a0c7aa6d12b66d50ea221', 'Consumer', 'Limuel Castillo');
+
+-- password: merilynrazon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('merilynrazon', '5dd7402aa7f83ea5f05c605da468a53a46b01ab25324599478f2675ef7931914', 'Consumer', 'Merilyn Razon');
+
+-- password: pabloramirez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('pabloramirez', 'd1aa3155d733933df89179a60d9278971475c1f057cf2ac57972c9ef48b2e59a', 'Consumer', 'Pablo Ramirez');
+
+-- password: basiliopollero123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('basiliopollero', '96a6880c1a48f0a68d92c9d0e2073ae1f65f57f6c0c2d418f6ff191a2aeec694', 'Consumer', 'Basilio Pollero');
+
+-- password: marissaalbitos123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('marissaalbitos', '96f39e774c81047c79dc4738d518baf124b871f0951e5dbe27b21a9cfa4f0f0d', 'Consumer', 'Marissa Albitos');
+
+-- password: adelolanas123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('adelolanas', '072c3f81b0c81c6641177c305988ae92ffde7720cf14c46b3cb23130f5e2ad38', 'Consumer', 'Adel Olanas');
+
+-- password: melodyparalejas123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('melodyparalejas', '7f79037a18be808cce3149d730f85db6d0a9134f69d7c1da2796ad830d6ef07f', 'Consumer', 'Melody Paralejas');
+
+-- password: maricelmalco123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('maricelmalco', '21d94b20de63cc9c4f4310fa78acaa3cdb8935d72602b4aa007bb20c33db45cf', 'Consumer', 'Maricel Malco');
+
+-- password: wilfredomagtibay123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('wilfredomagtibay', '0f6dd1f2b3e02e595ee0b3f42dcbdf63cb61a02d6e5f73d88b79c8dfd536e844', 'Consumer', 'Wilfredo Magtibay');
+
+-- password: jersonrazon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jersonrazon', 'a60605c6fc1687eb14f7c5f019312bf78cd5fce40a306bd6e7db1fc3e49a0498', 'Consumer', 'Jerson Razon');
+
+-- password: cerelinogonzales123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('cerelinogonzales', 'e93aee1dc7c51ebc6240553c0b441e80a15b57c7d45b16f368f4e13dd220ce22', 'Consumer', 'Cerelino Gonzales');
+
+-- password: ronabelpanganiban123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('ronabelpanganiban', '1500c7346d3ea312e2f01e02f97b57cc580c9dbf1b3fc29363572ff586232999', 'Consumer', 'Ronabel Panganiban');
+
+-- password: daniloilagan123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('daniloilagan', '883b353e272dd93253e25958fcd7a94af4a5f2cb6da05b00ce07f6dce2280b42', 'Consumer', 'Danilo Ilagan');
+
+-- password: melindapesigan123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('melindapesigan', '3ea01475c4c30d2f0e32a92ff3ffef44b8b75bb405e17d5a8de87544ecf89664', 'Consumer', 'Melinda Pesigan');
+
+-- password: maeannalbitos123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('maeannalbitos', 'a0e6f0eeb69fc6d690ba6e3486d40e1ae114307ae85811812f1e393f88e34e54', 'Consumer', 'Mae Ann Albitos');
+
+-- password: amabelpanganiban123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('amabelpanganiban', '5b2cb23e07a388d4c5a2a84f6ac1b41328da97dd07a01a3aa2b5ac0892bfbecf', 'Consumer', 'Amabel Panganiban');
+
+-- password: randiemalco123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('randiemalco', 'cf0f219cce847295ea5f7f1158cd0d790b3b4e60458c2077f92adf8e50047c2a', 'Consumer', 'Randie Malco');
+
+-- password: nelsonrazon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('nelsonrazon', 'a7af173fd2780c6011ce7a62db2ac5f7f76027f9d9b833fbd3e7fc3753138c6f', 'Consumer', 'Nelson Razon');
+
+-- password: violetamasalunga123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('violetamasalunga', '6318baf8b748c69ae2b76235c80a4f30b4421b2dbcf75c1d9d93f1a1b5e7a3af', 'Consumer', 'Violeta Masalunga');
+
+-- password: robertomacalindong123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('robertomacalindong', '3950c83edeb12d33f002f53b40abf0b61619752b225b08a2c7e59b853f87e86b', 'Consumer', 'Roberto Macalindong');
+
+-- password: jeromebraceros123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jeromebraceros', '510b7ce5621c0fba8a313d5ff4458902e1126e52945ef5d3f942a68f344b3696', 'Consumer', 'Jerome Braceros');
+
+-- password: jowelbraceros123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jowelbraceros', 'd151c4d1c75fe7e2d1cf0981713c9a11d3e2b117264f5d7e36d70ee05a4d5cf6', 'Consumer', 'Jowel Braceros');
+
+-- password: elvinbraceros123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('elvinbraceros', 'd72b05de209a08a97f8ee52790cc07d7dbd426cb65b9aa2c5f1f0c2364c72eeb', 'Consumer', 'Elvin Braceros');
+
+-- password: dennisliwanag123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('dennisliwanag', '34e59fa5c7f4d9ccfcfae12cb19b56c6c5cc26f1b29638daeeeb201be3a1fcdf', 'Consumer', 'Dennis Liwanag');
+
+-- password: elmerbraceros123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('elmerbraceros', '750d3f56b6fd2a018c51a68a4aafac0f4e0df82be8890e8a195a16c6c80f0174', 'Consumer', 'Elmer Braceros');
+
+-- password: michaelbrana123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('michaelbrana', '3ea11ee32cc04f17f0b9d86a54b02f50d96b018726e17e0f5f682a68f1705743', 'Consumer', 'Michael Brana');
+
+-- password: sharonorasa123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('sharonorasa', '0e1d61e6cf55a6d0a7ef4b56cb3a5b59547b52af2abcb57b82b61d65b84f8f7f', 'Consumer', 'Sharon Orasa');
+
+-- password: benjiecaponpon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('benjiecaponpon', '9c264cbf02f5a05dc0873a1de18ee7f33ed1797dc7ed47fc83a4f85393a987a4', 'Consumer', 'Benjie Caponpon');
+
+-- password: eleazarbraceros123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('eleazarbraceros', '8b2f76b11e24a5b2c09c6e4b6b2c20f5b4e2b82328a7d57e7eb65f2f09ff1e1a', 'Consumer', 'Eleazar Braceros');
+
+-- password: domingabraceros123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('domingabraceros', '1f2bb41c808df41baf0702ff26d91474ff0bdbd84cdbb139d02f9f4fc96dc52f', 'Consumer', 'Dominga Braceros');
+
+-- password: allanroybriones123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('allanroybriones', '8c5e78c08ad87c5f9435483b4da47d38c9e54c17b2e19deafaececd755be0ed2', 'Consumer', 'Allan Roy Briones');
+
+-- password: maribelcantos123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('maribelcantos', '9d01599e1ec8ae15bca528e466313959ec061d15b606200c5ee7d4b2fa44fa4b', 'Consumer', 'Maribel Cantos');
+
+-- password: danielbraceros123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('danielbraceros', 'efb70b21c0e86a7b85c1cc20a6a56d9d8087c1beaaed64cb667acc6c889aa468', 'Consumer', 'Daniel Braceros');
+
+-- password: marklouiecortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('marklouiecortez', 'ce9f339bb9051ad946174071c72b81c3de1f09a0d1540de47890b4bff42dc3a2', 'Consumer', 'Mark Louie Cortez');
+
+-- password: rennecortez123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('rennecortez', 'b92c44e91f1d8e15533aa682f45208f4dcdebd7590ad2f94c2d0df810f85de69', 'Consumer', 'Renne Cortez');
+
+-- password: jhonjhonespelyardo123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jhonjhonespelyardo', '1c8ad07d4b2e9f5672ee3a4a36ebc7dcfe796ed78d5681085fe08e23a31c2db1', 'Consumer', 'Jhon-Jhon Espelyardo');
+
+-- password: arvinsalagubang123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('arvinsalagubang', '84320836b4a22a97e17036dbd801a3b132087429f4f9e04834fbcf5349c74e1d', 'Consumer', 'Arvin Salagubang');
+
+-- password: edwinsical123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('edwinsical', '0384a9c471ef11652adf3d545cbb03ce1117ce2ff86de0176e09f5cfd9aa9a56', 'Consumer', 'Edwin Sical');
+
+-- password: mariasalagubang123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('mariasalagubang', '26aee12fe58ed113ee29b035a879c6a4b3b6dfd408ae1a3b5a21ad2581008025', 'Consumer', 'Maria Salagubang');
+
+-- password: elviesimon123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('elviesimon', 'b9b8ce3c98cba59e85a91fa362070418f4a7cf8b5ee60799914f8d731520a998', 'Consumer', 'Elvie Simon');
+
+-- password: wendymanimtim123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('wendymanimtim', 'ba4ac42ac3a25d39dcaac0cd14fe23b2701103900aef7c61d057dd6b4e00d66a', 'Consumer', 'Wendy Manimtim');
+
+-- password: jommelcamalig123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('jommelcamalig', '2d61b6afdaaf55a8a9821e660fc389e500d30c65ff08aaff1c9f37f90e6e88f6', 'Consumer', 'Jommel Camalig');
+
+-- password: willyalbitos123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('willyalbitos', 'ed88b30775a84abbe7d9b2832c936a91c0d38e6a80e7a0e9a73cf80c91519e3f', 'Consumer', 'Willy Albitos');
+
+-- password: dennisbaldo123
+INSERT INTO users (username, password_hash, role, full_name) VALUES
+('dennisbaldo', '820468f1ddc9cf586cb0e2c5d45c7f4c9f4098a62f8e9c1f2ce94951b33dfaa3', 'Consumer', 'Dennis Baldo');
+

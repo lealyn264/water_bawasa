@@ -1,0 +1,183 @@
+Got it 👍 You want me to detail **each page’s functionality and expected behavior** — not just what it is, but also how it should behave when users interact with it. I’ll go through your whole folder structure and describe the exact **page logic + UI behavior**.
+
+---
+
+# 📂 `frontend/`
+
+### 🔑 Root Files
+
+* **`db.php`** → Provides database connection.
+  **Behavior:** Every page includes this file; it opens a persistent MySQL connection. If connection fails, shows error/log.
+
+* **`auth.php`** → Handles session and authentication.
+  **Behavior:** Redirects unauthorized users. Validates credentials. Provides helper like `isAdmin()`, `isStaff()`, `isConsumer()` to guard access.
+
+* **`login.php`** → Login page.
+  **Behavior:** Shows login form. On submit → verifies via `auth.php`. If valid → redirects by role:
+
+  * Admin → `adminDashboard.php`
+  * Staff → `staffDashboard.php`
+  * Consumer → `consumerDashboard.php`
+    Invalid → shows error message.
+
+* **`logout.php`** → Logout script.
+  **Behavior:** Destroys session and redirects back to `login.php`.
+
+* **`resetPassword.php`** → Password reset.
+  **Behavior:** Lets user enter username/email → validates → allows password reset via form. On success, updates DB and logs audit.
+
+* **`index.php`** → Entry point.
+  **Behavior:** If session active, redirect to correct dashboard. If not, go to `login.php`.
+
+---
+
+# 📂 `admin/` (Administrator pages)
+
+* **`adminDashboard.php`**
+  **Functionality:** Main admin overview.
+  **Behavior:** Shows KPIs (e.g., total users, overdue bills, revenue), charts (consumption, payments), and demand forecast results. Has quick links to receipts, users, reports.
+
+* **`adminAddReceipt.php`**
+  **Functionality:** Add manual receipt entry.
+  **Behavior:** Form to input household, previous & current meter reading → system auto-calculates total used and amount → save to DB → generate receipt.
+
+* **`adminAddPhotoReading.php`**
+  **Functionality:** Upload meter photo readings.
+  **Behavior:** Staff/admin uploads image, enters current reading. System validates, stores image, and links reading to household.
+
+* **`adminManageUsers.php`**
+  **Functionality:** Manage system users.
+  **Behavior:** Table/list of all users (Admin, Staff, Consumer) with search, filter. Can add new, edit, deactivate, or assign household to user.
+
+* **`adminManagerReceipts.php`**
+  **Functionality:** Full receipts management.
+  **Behavior:** Lists all receipts (Paid, Unpaid, Overdue). Admin can filter, view, print individual/selected receipts, or export.
+
+* **`adminPayment.php`**
+  **Functionality:** Manage and track payments.
+  **Behavior:** Shows list of payments → allows admin to confirm payments, update statuses (Paid/Unpaid), generate payment history.
+
+* **`adminAuditLogs.php`**
+  **Functionality:** Track all system activities.
+  **Behavior:** Displays logs (user actions, edits, logins). Admin can filter logs by date/user/action for ISO compliance.
+
+* **`adminReports.php`**
+  **Functionality:** Generate reports.
+  **Behavior:** Admin selects report type (e.g., billing, payments, forecasting). System generates CSV/PDF.
+
+* **`adminServices.php`**
+  **Functionality:** Manage service requests.
+  **Behavior:** List of connection/disconnection requests. Admin can approve, decline, or schedule service.
+
+* **`adminProfile.php`**
+  **Functionality:** Show admin profile.
+  **Behavior:** Displays name, contact, email, role, date created.
+
+* **`adminEditProfile.php`**
+  **Functionality:** Edit profile.
+  **Behavior:** Form to edit name, email, password, contact. On save, updates DB and logs change.
+
+* **`adminRegisterUser.php`**
+  **Functionality:** Register new user.
+  **Behavior:** Form to add user with role + household assignment. On submit, inserts into DB and shows success message.
+
+---
+
+# 📂 `staff/` (Staff pages)
+
+* **`staffDashboard.php`**
+  **Functionality:** Staff overview.
+  **Behavior:** Shows staff KPIs (households handled, receipts processed, overdue accounts), usage charts.
+
+* **`staffManageReceipts.php`**
+  **Functionality:** Manage receipts (staff scope).
+  **Behavior:** Lists receipts assigned to staff-handled households. Can view/print, but no full admin-level control.
+
+* **`staffManagePayments.php`**
+  **Functionality:** Track consumer payments.
+  **Behavior:** Staff verifies/updates consumer payments, confirms Paid/Unpaid, and logs action.
+
+* **`staffAddPhotoReading.php`**
+  **Functionality:** Upload water meter readings.
+  **Behavior:** Staff uploads photo and enters meter reading → system calculates usage.
+
+* **`staffReports.php`**
+  **Functionality:** Generate staff-level reports.
+  **Behavior:** Staff can generate billing/collection reports for households they handle.
+
+* **`staffServices.php`**
+  **Functionality:** Manage service requests.
+  **Behavior:** Staff handles consumer requests (e.g., complaints, repair requests). Marks them as resolved/pending.
+
+* **`staffPaymentsHistory.php`**
+  **Functionality:** Payment history.
+  **Behavior:** Shows all payments made by consumers handled by this staff.
+
+* **`staffProfile.php` / `staffEditProfile.php`**
+  **Functionality:** Profile view/edit.
+  **Behavior:** Same as admin profile pages but scoped to staff account.
+
+---
+
+# 📂 `consumer/` (Consumer pages)
+
+* **`consumerDashboard.php`**
+  **Functionality:** Consumer overview.
+  **Behavior:** Shows consumer KPIs (latest bill, outstanding balance, consumption trends). Provides quick links to Receipts and Billing history.
+
+* **`consumerReceipts.php`**
+  **Functionality:** View receipts.
+  **Behavior:** Lists receipts (Paid, Unpaid, Overdue) with option to download/print.
+
+* **`consumerBillings.php`**
+  **Functionality:** View billing history.
+  **Behavior:** Table of all bills with amounts, due dates, and status. Options to export as CSV/PDF.
+
+* **`consumerProfile.php` / `consumerEditProfile.php`**
+  **Functionality:** Profile management.
+  **Behavior:** Displays consumer details (name, meter number, household). Edit page allows updating name, email, contact, password.
+
+---
+
+# 📂 `api/`
+
+* **`forecasts.php`**
+  **Functionality:** API endpoint for forecasting.
+  **Behavior:** Calls Python Flask service → retrieves SARIMAX predictions → returns JSON to dashboards for display in charts.
+
+---
+
+# 📂 `assets/`
+
+* **`css/style.css`**
+  **Functionality:** Global design + theme.
+  **Behavior:** Defines colors, layout, typography (Poppins font, ISO-aligned color scheme).
+
+* **`js/app.js`**
+  **Functionality:** Client-side interactivity.
+  **Behavior:** Handles AJAX requests, form validation, sidebar toggle, chart rendering.
+
+---
+
+# 📂 `python_forecast/`
+
+* **`forecast_api.py`**
+  **Functionality:** Forecasting service.
+  **Behavior:** Flask REST API that accepts historical data from PHP, runs SARIMAX model, and returns demand forecast in JSON.
+
+* **`requirements.ipynb`**
+  **Functionality:** Documentation/testing.
+  **Behavior:** Notebook listing Python dependencies (`pandas`, `statsmodels`, `Flask`), used for testing forecasting scripts.
+
+---
+
+# 📄 `README.md`
+
+* **Functionality:** Developer documentation.
+  **Behavior:** Provides installation steps, database setup, backend/frontend configuration, and API integration notes.
+
+---
+
+✅ This gives you not only what each file does, but also **how the page should behave in real use** (inputs, outputs, and user interaction).
+
+Do you want me to **reformat this into a polished “System Implementation” chapter** (like what you’d put in your manuscript as Chapter 4), with diagrams (page flow / role-based access flow) included?

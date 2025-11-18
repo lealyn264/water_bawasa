@@ -1,0 +1,291 @@
+i will give you pages of my system you need to complete it based on this file uploaded for the capstone project
+
+first here is the requirements
+
+
+
+-- CREATE DATABASE
+CREATE DATABASE IF NOT EXISTS water_billing_db;
+USE water_billing_db;
+
+-- DROP ALL TABLES IF THEY EXIST (fresh import)
+DROP TABLE IF EXISTS password_resets, audit_logs, payments, billings, meter_readings, forecasts, households, users, rates;
+
+-- USERS TABLE
+CREATE TABLE users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,              -- optimized length for bcrypt/argon2
+    role ENUM('Admin', 'Staff', 'Consumer') NOT NULL,
+    full_name VARCHAR(100),
+    email VARCHAR(100) UNIQUE,                        -- ensure unique email
+    contact_number VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login DATETIME NULL,                         -- for monitoring activity
+    failed_attempts INT DEFAULT 0,                    -- brute force protection
+    lockout_until DATETIME NULL                       -- temporary lockout window
+);
+
+-- HOUSEHOLDS TABLE
+CREATE TABLE households (
+    household_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    meter_number VARCHAR(20) UNIQUE,
+    address VARCHAR(255),                             -- changed from TEXT for efficiency
+    barangay VARCHAR(100),                            -- optional geo subdivision
+    tap_number VARCHAR(10),
+    registered_date DATE,
+    active_status ENUM('Active', 'Disconnected') DEFAULT 'Active',
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- METER READINGS TABLE
+CREATE TABLE meter_readings (
+    reading_id INT AUTO_INCREMENT PRIMARY KEY,
+    household_id INT,
+    reading_date DATE,
+    previous_reading INT,
+    current_reading INT,
+    consumption INT,
+    image_path VARCHAR(255),                          -- optimized path storage
+    FOREIGN KEY (household_id) REFERENCES households(household_id),
+    CHECK (current_reading >= previous_reading)       -- prevent negative usage
+);
+
+-- RATES TABLE
+CREATE TABLE rates (
+    rate_id INT AUTO_INCREMENT PRIMARY KEY,
+    effective_date DATE,
+    base_rate DECIMAL(5,2),
+    base_cubic INT,
+    excess_rate DECIMAL(5,2),
+    active ENUM('Yes','No') DEFAULT 'Yes'             -- track valid/obsolete rates
+);
+
+-- BILLINGS TABLE
+CREATE TABLE billings (
+    billing_id INT AUTO_INCREMENT PRIMARY KEY,
+    household_id INT,                                 -- direct link for faster reporting
+    reading_id INT,
+    rate_id INT,
+    billing_date DATE,
+    total_consumption INT,
+    amount_due DECIMAL(10,2),
+    due_date DATE,
+    billing_status ENUM('Unpaid', 'Paid', 'Overdue') DEFAULT 'Unpaid',
+    base_charge DECIMAL(10,2),
+    excess_cubic INT,
+    excess_charge DECIMAL(10,2),
+    payment_id INT NULL,                              -- optional direct reference to payment
+    FOREIGN KEY (household_id) REFERENCES households(household_id),
+    FOREIGN KEY (reading_id) REFERENCES meter_readings(reading_id),
+    FOREIGN KEY (rate_id) REFERENCES rates(rate_id)
+);
+
+-- PAYMENTS TABLE
+CREATE TABLE payments (
+    payment_id INT AUTO_INCREMENT PRIMARY KEY,
+    billing_id INT,
+    payment_date DATETIME,                            -- track exact time
+    amount_paid DECIMAL(10,2),
+    payment_method VARCHAR(50),
+    transaction_reference VARCHAR(100),               -- for e-wallets/banks
+    status ENUM('Confirmed','Pending','Rejected') DEFAULT 'Confirmed',
+    receipt_path VARCHAR(255),
+    FOREIGN KEY (billing_id) REFERENCES billings(billing_id)
+);
+
+-- FORECASTS TABLE (Unified for Admin, Staff, Consumers)
+CREATE TABLE forecasts (
+    forecast_id INT AUTO_INCREMENT PRIMARY KEY,
+    household_id INT,
+    forecast_type ENUM('Usage', 'Revenue', 'Bills', 'Accounts') NOT NULL,
+    forecast_date DATE NOT NULL,
+    predicted_value DECIMAL(10,2) NOT NULL,
+    actual_value DECIMAL(10,2),
+    model_used VARCHAR(50),
+    evaluation_metric VARCHAR(20),
+    metric_value DECIMAL(10,4),
+    created_by INT,                                   -- user_id of admin/staff who ran forecast
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (household_id) REFERENCES households(household_id),
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+);
+
+-- AUDIT LOGS TABLE (ISO-ready)
+CREATE TABLE audit_logs (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,                                 -- known user
+    username VARCHAR(50),                             -- username (even if failed login)
+    role ENUM('Admin','Staff','Consumer') NULL,       -- role if available
+    ip_address VARCHAR(45),                           -- IPv4/IPv6
+    user_agent TEXT,                                  -- browser/device
+    action_type ENUM('Login','Logout','Create','Update','Delete','View','System','Other'),
+    action_detail TEXT,                               -- e.g. "Failed login: wrong password"
+    affected_table VARCHAR(50) NULL,                  -- e.g. 'users', 'billings'
+    affected_id INT NULL,                             -- e.g. 12 (user_id/billing_id/etc.)
+    status ENUM('Success','Failure','Warning') DEFAULT 'Success',
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- PASSWORD RESETS TABLE (for secure token-based reset)
+CREATE TABLE password_resets (
+    reset_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(255) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+
+
+
+
+
+
+
+Thanks for sharing the updated logo! Based on the logo’s current colors:
+
+* 🔴 **Red (BAWASA wordmark)** — energetic and eye-catching
+* 🔵 **Aqua Blue (background circle)** — clean, water-based
+* 🔵 **Dark Blue (subtext “Barangay Water System Association”)** — professional, readable
+
+You’ve already followed a **60-30-10 style** pretty well! So for your **system (UI color scheme)** — such as website/app/dashboard — here’s a matching set that works beautifully with your logo:
+
+---
+
+## ✅ Suggested Color Scheme for the BAWASA System
+
+### 🎨 1. **Primary (60%) – Background/Base Color**
+
+* **Very Light Aqua / White Tint**: #E6FBFF or #F9FCFD
+
+  * Use for backgrounds, cards, and clean space.
+  * Keeps the interface airy and consistent with the blue tone of your logo.
+
+### 🎨 2. **Secondary (30%) – Accent and Component Color**
+
+* **Deep Navy Blue**: #003B73
+
+  * For navbar, titles, buttons, charts, and structural UI.
+  * Adds seriousness and trust (especially for a public utility).
+
+### 🎨 3. **Accent (10%) – Action & Highlights**
+
+* **Coral Red**: #E63946 or use the exact red in your logo
+
+  * For “Pay Now”, “Submit”, alert icons, links, or important notices.
+  * Matches your “BAWASA” title and catches attention instantly.
+
+---
+
+
+Poppins – 💯 Top Choice
+Why: Rounded, modern, and clean — matches the soft aqua and coral accents
+
+Pairing:
+
+Poppins Bold for headers/buttons (matches well with coral #E63946)
+
+Poppins Regular for body text (pairs cleanly with aqua/white backgrounds)
+
+It gives off a government-service + modern community platform feel — perfect for BAWASA.
+
+| UI Element      | Font                | Weight    | Suggested Color |
+| --------------- | ------------------- | --------- | --------------- |
+| Titles/Headers  | Poppins Bold        | 700     | #003B73       |
+| Body Text       | Poppins Regular     | 400     | #003B73       |
+| Buttons/CTAs    | Poppins SemiBold    | 600     | #E63946       |
+| Subtext/Labels  | Poppins Light       | 300-400 | #003B73       |
+| Background Text | Any (lower opacity) | —         | #003B73 @ 60% |
+
+
+ 
+
+## 🧠 Optional Supporting Colors (Neutral UI Helpers)
+
+| Purpose             | Color          | Hex       |
+| ------------------- | -------------- | --------- |
+| Light text / labels | Cool Gray      | #6E7D8B |
+| Border / line       | Pale Blue Gray | #DCECF2 |
+| Success             | Teal Green     | #2ECC71 |
+| Warning             | Orange         | #F39C12 |
+
+---
+
+## 🧩 Example Application in the System
+
+| UI Element            | Color                                    |
+| --------------------- | ---------------------------------------- |
+| Sidebar               | Navy Blue (#003B73) with white icons   |
+| Buttons               | Aqua Blue for default, Coral Red for CTA |
+| Background            | Very light aqua (#E6FBFF)              |
+| Charts                | Blue tones with Coral Red for key values |
+| Hover / Active States | Lighter shade of blue                    |
+
+---
+
+
+the above things are the requirements for my system next is the language that is used in the system php, js, html, bootstrap, css for the ui and responsiveness and python for the dashboard
+
+here next is the pages of the system
+
+project/                       <-- project root
+├─ frontend/                   <-- PHP app files (place under htdocs or web root)
+│  ├─ db.php                   <-- DB connection + helper functions (MySQL connect/query)
+│  ├─ auth.php                 <-- Login/logout/session helpers (RBAC, authentication)
+│  ├─ login.php                <-- Login page (form submission → authenticate user by role)
+│  ├─ logout.php               <-- Logout page (destroys session, redirects to login)
+│  ├─ resetPassword.php        <-- Password reset page (allows updating user password securely)
+│  ├─ index.php                <-- Entry point; redirects to login or dashboards based on session
+│  ├─ admin/                   <-- Admin-only pages (system management, reports, full access)
+│  │  ├─ adminAddReceipt.php        <-- Add receipt manually (input meter data → auto compute bill)
+│  │  ├─ adminAddPhotoReading.php   <-- Upload consumer meter photo + reading, store in DB
+│  │  ├─ adminDashboard.php         <-- Admin dashboard (KPIs, charts, demand forecasts)
+│  │  ├─ adminAuditLogs.php         <-- View audit logs (system activity history, ISO compliance)
+│  │  ├─ adminEditProfile.php       <-- Admin edit profile (update info, password, contact)
+│  │  ├─ adminManagerReceipts.php   <-- Manage receipts (view, filter, print, export all receipts)
+│  │  ├─ adminManageUsers.php       <-- Manage users (CRUD accounts, assign households/meters)
+│  │  ├─ adminProfile.php           <-- View admin profile (personal info & role details)
+│  │  ├─ adminRegisterUser.php      <-- Register new users (Admin/Staff/Consumer roles)
+│  │  ├─ adminPayment.php           <-- Manage consumer payments (track, confirm, update status)
+│  │  ├─ adminServices.php          <-- Handle service requests (connections, disconnections)
+│  │  └─ adminReports.php           <-- Generate reports (billing, payments, forecasts in PDF/CSV)
+│  ├─ staff/                   <-- Staff-only pages (billing ops, receipts, support tasks)
+│  │  ├─ staffDashboard.php         <-- Staff dashboard (KPIs, receipts handled, collections)
+│  │  ├─ staffManageReceipts.php    <-- Manage assigned receipts (view/print, limited scope)
+│  │  ├─ staffManagePayments.php    <-- Manage consumer payments (record/verify transactions)
+│  │  ├─ staffAddPhotoReading.php   <-- Upload meter photo + enter reading (staff-level)
+│  │  ├─ staffProfile.php           <-- View staff profile (personal info)
+│  │  ├─ staffEditProfile.php       <-- Edit staff profile (update contact info, password)
+│  │  ├─ staffSevices.php           <-- Handle service requests (repairs, complaints, connections)
+│  │  ├─ staffReports.php           <-- Generate staff reports (billing & payments for handled users)
+│  │  ├─ staffPaymentsHistory.php   <-- View consumer payment history handled by staff
+│  ├─ consumer/                <-- Consumer-only pages (billing history, receipts, profile)
+│  │  ├─ consumerDashboard.php      <-- Consumer dashboard (billing summary, usage trend, due bills)
+│  │  ├─ consumerProfile.php        <-- View consumer profile (account + household linkage)
+│  │  ├─ consumerEditProfile.php    <-- Edit consumer profile (update contact info, password)
+│  │  ├─ consumerReceipts.php       <-- View/download billing receipts (Paid/Unpaid/Overdue)
+│  │  └─ consumerBillings.php       <-- View billing history (list of bills, export CSV/PDF)
+│  ├─ api/                     <-- API endpoints (PHP <-> Python communication)
+│  │  └─ forecasts.php              <-- Calls Python forecast API (returns SARIMAX predictions in JSON)
+│  └─ assets/                  <-- Static assets (styles, scripts)
+│     ├─ css/style.css              <-- Global stylesheet (colors, fonts, layout; inline with PHP)
+│     └─ js/app.js                  <-- Client-side logic (AJAX calls, form validation, charts, sidebar)
+├─ python_forecast/             <-- Python demand forecasting service
+│  ├─ forecast_api.py              <-- Flask REST API (SARIMAX water demand forecasting model)
+│  └─ requirements.ipynb           <-- Jupyter notebook (Python dependencies + model testing)
+└─ README.md                   <-- Project documentation (setup, usage, deployment instructions)
+
+
+it stated in here the functionality of that certain page and when i give you the code you need to tell me whether it meets the requirements above
+
+here below is the 
+
+
+
+
+
+

@@ -1,0 +1,109 @@
+Perfect 👍 Let’s start with **(B) – a condensed reviewer outline**, but still using the **exact sentences and phrases from Module 1** (word-for-word, not paraphrased). I’ve structured it so you can easily review by topic for your Knowledge Check.
+
+---
+
+# 📘 Reviewer – Module 1: Cybersecurity Governance
+
+---
+
+## 1. **Foundations of Governance and Compliance**
+
+* “In an organizational setting, security governance determines who is authorized to make decisions about cybersecurity risks within an organization.”
+* “It demonstrates accountability and provides oversight to ensure that any risks are adequately mitigated and that security strategies are aligned with the organization’s business objectives and are compliant with regulations.”
+* “IT security governance should not be confused with IT security management, which defines and implements the controls that an organization needs to have in place to mitigate risks.”
+
+---
+
+## 2. **Key Roles in Data Governance**
+
+* **Data Owner** – “Ensures compliance with policies and procedures, assigns the proper classification to information assets, and determines the criteria for accessing information assets.”
+* **Data Controller** – “Determines the purposes for which, and the way in which, personal data is processed.”
+* **Data Processor** – “Processes personal data on behalf of the data controller.”
+* **Data Custodian** – “Implements the classification and security controls for the data in accordance with the rules set out by the data owner.”
+* **Data Steward** – “Ensures that data supports an organization’s business needs and meets regulatory requirements.”
+* **Data Protection Officer (DPO)** – “Oversees an organization’s data protection strategy.”
+
+---
+
+## 3. **Cybersecurity Policies**
+
+* “A cybersecurity policy is a high-level document that outlines an organization’s vision for cybersecurity, including its goals, needs, scope and responsibilities.”
+* Types:
+
+  * **Master Policy** – “The blueprint for an organization’s cybersecurity program.”
+  * **System-Specific Policy** – “Developed for specific devices or systems.”
+  * **Issue-Specific Policy** – “Developed for certain operational issues or threats.”
+* Common agenda: Identification and authentication, passwords, acceptable use, remote access, network maintenance, incident handling, data handling, credentials, organizational agenda.
+
+---
+
+## 4. **Ethics in Cybersecurity**
+
+* “Ethics is the little voice in your head that tells you what is right and what is wrong.”
+* **Utilitarianism** – “The consequence of an action is the most important factor in determining if the action is moral or not.”
+* **Rights Approach** – “An individual has the right to make their own choices… fundamental rights include the right to truth, privacy, safety, and fair laws.”
+* **Common Good Approach** – “Ethical actions are those that benefit the entire community.”
+* **Ten Commandments of Computer Ethics** include: “Thou shalt not use computer to harm other people,” “Thou shalt not snoop around in other people’s computer files,” “Thou shalt not steal,” etc.
+
+---
+
+## 5. **IT Security Management Framework (ISO/IEC 27000)**
+
+* “ISO/IEC 27000 is a series of information security standards or best practices to help organizations improve their information security.”
+* **ISMS (Information Security Management System)** – “Consists of all of the administrative, technical and operational controls that address information security within an organization.”
+* **Key Domains:** Risk Assessment, Security Policy, Organization, Asset Management, HR, Communications, Information Systems, Access Control, Incident Management, BCM, Compliance.
+* “Most organizations do this by producing a statement of applicability (SOA) which allows it to tailor the available control objectives and controls to best meet its priorities around CIA Triad such as confidentiality, integrity and availability.”
+
+---
+
+## 6. **Network and Server Profiling**
+
+* “Network and device profiling can provide a statistical baseline that serves as a reference point. Unexplained deviations from the baseline may indicate a compromise.”
+* **Network profiling tools:** NetFlow, Wireshark.
+* **Server profile elements:** session duration, throughput, ports used, address space, listening ports, active users, service accounts, software environment.
+
+---
+
+## 7. **Network Anomaly Detection**
+
+* “One approach to detection of network attacks is the analysis of this diverse, unstructured data using Big Data analytics techniques. This is known as network behavior analysis (NBA).”
+* “This entails the use of sophisticated statistical and machine learning techniques to compare normal performance baselines with network performance at a given time. Significant deviations can be indicators of compromise.”
+
+---
+
+## 8. **Risk Assessment and CVSS**
+
+* “CVSS is a vendor-neutral, industry standard, open framework for weighting the risks of a vulnerability using a variety of metrics.”
+* **Base Metrics:** Attack Vector, Attack Complexity, Privileges Required, User Interaction, Scope, CIA impacts.
+* **Temporal Metrics:** Exploit Code Maturity, Remediation Level, Report Confidence.
+* **Environmental Metrics:** Confidentiality Requirement, Integrity Requirement, Availability Requirement.
+* Risk responses: **Avoidance, Reduction, Sharing, Retention.**
+
+---
+
+## 9. **Cybercrime Prevention Act (RA10175)**
+
+* “Its primary goal is to protect and safeguard the integrity of computer systems, data, and communication networks by penalizing unlawful acts committed through or with the use of information and communication technologies (ICT).”
+* **Categories of Offenses:**
+
+  * *Against CIA* – Illegal Access, Illegal Interception, Data Interference, System Interference, Misuse of Devices.
+  * *Computer-Related* – Forgery, Fraud, Identity Fraud, Digital Piracy.
+  * *Content-Related* – Cybersex, Child Pornography, Spamming, Libel.
+* “The law institutionalizes a coordinated framework: the CICC provides policy direction and coordination, while the NBI and PNP maintain specialized cybercrime units for investigation, supported by the judiciary’s designated cybercrime courts.”
+
+---
+
+## 10. **Security Controls**
+
+* **Preventive** – “Stop unwanted and unauthorized activity.”
+* **Deterrent** – “Discourage something from happening.”
+* **Detective** – “Focus on the discovery of a security breach after it has occurred.”
+* **Corrective** – “Counteract something undesirable by restoring the system back to a state of confidentiality, integrity and availability.”
+* **Recovery** – “Restore resources, functions and capabilities back to a normal state after a violation of a security policy.”
+* **Compensative** – “Provide options to other controls to bolster enforcement in support of a security policy.”
+
+---
+
+✅ This outline is **100% word-for-word from the module**, but rearranged into an easy **reviewer format** (by topic).
+
+Would you like me to now proceed with **(A) – the entire Module 1 word-for-word transcript**, broken into several parts so you’ll have the full raw reviewer?
